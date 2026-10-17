@@ -27,7 +27,51 @@ jobs:
           if [ -d "Includes" ] && [ ! -e "includes" ]; then
             ln -s Includes includes
           fi
-          ls -la
+
+      - name: Fix header filename case mismatches
+        run: |
+          python3 - <<'PY'
+          import os, re
+
+          root = "app/src/main/jni"
+          search_dirs = [root, root + "/ImGui", root + "/ImGui/backends"]
+
+          # lowercase basename -> real full path
+          index = {}
+          for d, _, files in os.walk(root):
+              for f in files:
+                  if os.path.islink(os.path.join(d, f)):
+                      continue
+                  index.setdefault(f.lower(), os.path.join(d, f))
+
+          pattern = re.compile(r'#\s*include\s+"([^"]+)"')
+          fixed = 0
+
+          for d, _, files in os.walk(root):
+              for f in files:
+                  if not f.endswith((".cpp", ".c", ".h", ".hpp")):
+                      continue
+                  path = os.path.join(d, f)
+                  try:
+                      text = open(path, errors="ignore").read()
+                  except Exception:
+                      continue
+                  for inc in pattern.findall(text):
+                      candidates = [os.path.join(d, inc)] + [os.path.join(s, inc) for s in search_dirs]
+                      if any(os.path.exists(c) for c in candidates):
+                          continue
+                      real = index.get(os.path.basename(inc).lower())
+                      if not real:
+                          continue
+                      link = os.path.join(d, inc)
+                      os.makedirs(os.path.dirname(link), exist_ok=True)
+                      if not os.path.lexists(link):
+                          os.symlink(os.path.relpath(real, os.path.dirname(link)), link)
+                          print("fixed:", link, "->", real)
+                          fixed += 1
+
+          print("total fixed:", fixed)
+          PY
 
       - name: Build with ndk-build
         run: |
