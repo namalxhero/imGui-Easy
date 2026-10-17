@@ -21,6 +21,14 @@ jobs:
           ndk-version: r22b
           add-to-path: false
 
+      - name: Fix Includes folder case (Linux is case-sensitive)
+        run: |
+          cd app/src/main/jni
+          if [ -d "Includes" ] && [ ! -e "includes" ]; then
+            ln -s Includes includes
+          fi
+          ls -la
+
       - name: Build with ndk-build
         run: |
           ${{ steps.setup-ndk.outputs.ndk-path }}/ndk-build \
