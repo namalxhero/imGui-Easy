@@ -1,0 +1,41 @@
+name: Build Imgui .so (ndk-build)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Android NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r22b
+          add-to-path: false
+
+      - name: Build with ndk-build
+        run: |
+          ${{ steps.setup-ndk.outputs.ndk-path }}/ndk-build \
+            NDK_PROJECT_PATH=. \
+            APP_BUILD_SCRIPT=app/src/main/jni/Android.mk \
+            NDK_APPLICATION_MK=app/src/main/jni/Application.mk \
+            APP_ABI=armeabi-v7a \
+            -j$(nproc)
+
+      - name: Show output
+        run: find libs -name "*.so"
+
+      - name: Upload .so artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libImgui-armeabi-v7a
+          path: libs/**/*.so
+          if-no-files-found: error
